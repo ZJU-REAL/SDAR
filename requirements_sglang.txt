@@ -11,7 +11,7 @@ peft
 pyarrow>=19.0.0
 pybind11
 pylatexenc
-ray[default]>=2.10
+ray[default]>=2.53.0
 tensordict<=0.6.2
 torchdata
 torchvision
