@@ -19,7 +19,7 @@ torchdata
 transformers==4.51.1
 # vllm==0.8.4
 wandb
-packaging>=20.0
+packaging>=26.2
 uvicorn
 fastapi
 qwen-vl-utils[decord]
