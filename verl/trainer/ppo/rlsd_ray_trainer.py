@@ -91,14 +91,16 @@ def build_teacher_batch(
         # Get privileged skill info based on gamefile, data_source, or prompt text
         gamefile = batch.non_tensor_batch.get("gamefile", None)
         data_source = batch.non_tensor_batch.get("data_source", None)
-        if gamefile is not None:
-            gf = gamefile[i] if isinstance(gamefile[i], str) else str(gamefile[i])
-            skill_text = skill_provider.get_privileged_info(gf)
-        elif data_source is not None:
-            ds = data_source[i] if isinstance(data_source[i], str) else str(data_source[i])
-            skill_text = skill_provider.get_privileged_info_from_data_source(ds, prompt_text)
-        else:
-            skill_text = skill_provider.get_privileged_info_from_prompt(prompt_text)
+        task_name = batch.non_tensor_batch.get("task_name", None)
+        gf = gamefile[i] if gamefile is not None else None
+        ds = data_source[i] if data_source is not None else None
+        task = task_name[i] if task_name is not None else None
+        skill_text = skill_provider.get_privileged_info_for_sample(
+            task_name=task,
+            gamefile=gf,
+            data_source=ds,
+            prompt_text=prompt_text,
+        )
 
         # Construct teacher prompt: prepend skill as a system message
         skill_prefix = f"[Privileged Skill Information]\n{skill_text}\n\n"
@@ -221,6 +223,8 @@ class RLSDRayTrainer(RayPPOTrainer):
                     non_tensor_batch_keys_to_pop.append("tools_kwargs")
                 if "env_kwargs" in batch.non_tensor_batch:
                     non_tensor_batch_keys_to_pop.append("env_kwargs")
+                if "task_name" in batch.non_tensor_batch:
+                    non_tensor_batch_keys_to_pop.append("task_name")
                 gen_batch = batch.pop(
                     batch_keys=batch_keys_to_pop,
                     non_tensor_batch_keys=non_tensor_batch_keys_to_pop,
@@ -302,6 +306,9 @@ class RLSDRayTrainer(RayPPOTrainer):
                             batch, invalid_metrics = apply_invalid_action_penalty(
                                 batch,
                                 invalid_action_penalty_coef=self.config.actor_rollout_ref.actor.invalid_action_penalty_coef,
+                                invalid_action_penalty_coef_by_task=self.config.actor_rollout_ref.actor.get(
+                                    "invalid_action_penalty_coef_by_task", None
+                                ),
                             )
                             metrics.update(invalid_metrics)
 

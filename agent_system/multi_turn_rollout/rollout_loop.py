@@ -182,6 +182,9 @@ class TrajectoryCollector:
             'data_source': data_source
         })
 
+        if 'task_name' in gen_batch.non_tensor_batch:
+            row_dict['task_name'] = gen_batch.non_tensor_batch['task_name'][item]
+
         if self.config.data.get('return_raw_chat', False):
             row_dict['raw_prompt'] = chat.tolist()
         

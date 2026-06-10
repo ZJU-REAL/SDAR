@@ -108,6 +108,8 @@ class SkillSDRayTrainer(RLSDRayTrainer):
                     non_tensor_batch_keys_to_pop.append("tools_kwargs")
                 if "env_kwargs" in batch.non_tensor_batch:
                     non_tensor_batch_keys_to_pop.append("env_kwargs")
+                if "task_name" in batch.non_tensor_batch:
+                    non_tensor_batch_keys_to_pop.append("task_name")
                 gen_batch = batch.pop(
                     batch_keys=batch_keys_to_pop,
                     non_tensor_batch_keys=non_tensor_batch_keys_to_pop,
@@ -188,6 +190,9 @@ class SkillSDRayTrainer(RLSDRayTrainer):
                             batch, invalid_metrics = apply_invalid_action_penalty(
                                 batch,
                                 invalid_action_penalty_coef=self.config.actor_rollout_ref.actor.invalid_action_penalty_coef,
+                                invalid_action_penalty_coef_by_task=self.config.actor_rollout_ref.actor.get(
+                                    "invalid_action_penalty_coef_by_task", None
+                                ),
                             )
                             metrics.update(invalid_metrics)
 

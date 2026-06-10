@@ -223,6 +223,66 @@ def create_rl_dataset(data_paths, data_config, tokenizer, processor):
     return dataset
 
 
+class TaskBalancedSampler:
+    """Yield indices so every dataloader batch has the same task mix."""
+
+    def __init__(self, dataset, task_balance_config, batch_size: int, shuffle: bool, seed: int):
+        import numpy as np
+        from omegaconf import OmegaConf
+
+        if not hasattr(dataset, "dataframe") or "task_name" not in dataset.dataframe.column_names:
+            raise ValueError("TaskBalancedSampler requires a dataset column named 'task_name'.")
+
+        cfg = OmegaConf.to_container(task_balance_config, resolve=True) if OmegaConf.is_config(task_balance_config) else dict(task_balance_config)
+        self.tasks = list(cfg.get("tasks", ["alfworld", "search", "webshop"]))
+        self.per_task_batch_size = int(cfg.get("per_task_batch_size", 0))
+        if self.per_task_batch_size <= 0:
+            raise ValueError("data.task_balance.per_task_batch_size must be a positive integer.")
+
+        expected_batch_size = self.per_task_batch_size * len(self.tasks)
+        if int(batch_size) != expected_batch_size:
+            raise ValueError(
+                f"Balanced task batch size mismatch: got batch_size={batch_size}, "
+                f"expected {expected_batch_size} ({self.per_task_batch_size} * {len(self.tasks)} tasks)."
+            )
+
+        task_names = list(dataset.dataframe["task_name"])
+        self.task_to_indices = {
+            task: [idx for idx, task_name in enumerate(task_names) if task_name == task]
+            for task in self.tasks
+        }
+        missing = [task for task, indices in self.task_to_indices.items() if len(indices) < self.per_task_batch_size]
+        if missing:
+            raise ValueError(f"Not enough samples to build one balanced batch for tasks: {missing}")
+
+        self.num_batches = min(len(indices) // self.per_task_batch_size for indices in self.task_to_indices.values())
+        self.shuffle = bool(shuffle)
+        self.seed = int(seed)
+        self._epoch = 0
+        self._np = np
+
+    def __iter__(self):
+        rng = self._np.random.RandomState(self.seed + self._epoch)
+        self._epoch += 1
+
+        task_indices = {}
+        required = self.num_batches * self.per_task_batch_size
+        for task, indices in self.task_to_indices.items():
+            indices = list(indices)
+            if self.shuffle:
+                rng.shuffle(indices)
+            task_indices[task] = indices[:required]
+
+        for batch_idx in range(self.num_batches):
+            start = batch_idx * self.per_task_batch_size
+            end = start + self.per_task_batch_size
+            for task in self.tasks:
+                yield from task_indices[task][start:end]
+
+    def __len__(self):
+        return self.num_batches * self.per_task_batch_size * len(self.tasks)
+
+
 def create_rl_sampler(data_config, dataset):
     """Create a sampler for the dataset.
 
@@ -235,6 +295,23 @@ def create_rl_sampler(data_config, dataset):
     """
     import torch
     from torch.utils.data import RandomSampler, SequentialSampler
+
+    task_balance_config = data_config.get("task_balance", {})
+    if task_balance_config and task_balance_config.get("enable", False):
+        batch_size = data_config.get("gen_batch_size", data_config.train_batch_size)
+        sampler = TaskBalancedSampler(
+            dataset=dataset,
+            task_balance_config=task_balance_config,
+            batch_size=batch_size,
+            shuffle=data_config.shuffle,
+            seed=data_config.get("seed", 1),
+        )
+        print(
+            "Using TaskBalancedSampler: "
+            f"tasks={sampler.tasks}, per_task_batch_size={sampler.per_task_batch_size}, "
+            f"num_batches={sampler.num_batches}"
+        )
+        return sampler
 
     # use sampler for better ckpt resume
     if data_config.shuffle:

@@ -20,6 +20,10 @@ data:
   video_key: videos
   trust_remote_code: False  # main_ppo will check this config to determine whether to use remote code for tokenizer
   apply_chat_template_kwargs: {}
+  task_balance:
+    enable: False
+    tasks: [alfworld, search, webshop]
+    per_task_batch_size: null
   custom_cls:
       path: null
       name: null
@@ -57,6 +61,7 @@ actor_rollout_ref:
     entropy_coeff: 0.001
     use_invalid_action_penalty: True
     invalid_action_penalty_coef: 0.1
+    invalid_action_penalty_coef_by_task: null
     use_kl_loss: False # True for GRPO
     use_torch_compile: True # False to disable torch compile
     kl_loss_coef: 0.001 # for grpo
@@ -306,6 +311,13 @@ env:
     search_url: "http://127.0.0.1:8000/retrieve" # also support multiple urls: ["http://127.0.0.1:8000/retrieve", "http://127.0.0.1:8001/retrieve"]
     topk: 3
     timeout: 60
+  multitask:
+    tasks: [alfworld, search, webshop]
+    max_steps:
+      alfworld: 50
+      search: 4
+      webshop: 15
+    val_per_task_batch_size: null
   sokoban:
     dim_room: [6, 6]
     num_boxes: 1

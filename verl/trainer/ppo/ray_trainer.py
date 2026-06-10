@@ -197,7 +197,30 @@ def apply_kl_penalty(data: DataProto, kl_ctrl: core_algos.AdaptiveKLController, 
 
     return data, metrics
 
-def apply_invalid_action_penalty(data: DataProto, invalid_action_penalty_coef=float):
+def _get_invalid_action_penalty_coef(data_item, invalid_action_penalty_coef, invalid_action_penalty_coef_by_task=None):
+    if not invalid_action_penalty_coef_by_task:
+        return float(invalid_action_penalty_coef)
+
+    task_name = data_item.non_tensor_batch.get("task_name", None)
+    if task_name is None:
+        return float(invalid_action_penalty_coef)
+
+    task_name = str(task_name).lower()
+    if "alfworld" in task_name:
+        task_name = "alfworld"
+    elif "webshop" in task_name:
+        task_name = "webshop"
+    elif "search" in task_name:
+        task_name = "search"
+
+    return float(invalid_action_penalty_coef_by_task.get(task_name, invalid_action_penalty_coef))
+
+
+def apply_invalid_action_penalty(
+    data: DataProto,
+    invalid_action_penalty_coef=float,
+    invalid_action_penalty_coef_by_task=None,
+):
     reward_tensor = data.batch['token_level_scores']
     if 'step_rewards' in data.batch.keys():
         step_rewards = data.batch['step_rewards']
@@ -212,12 +235,17 @@ def apply_invalid_action_penalty(data: DataProto, invalid_action_penalty_coef=fl
 
         action_valids = data_item.non_tensor_batch['is_action_valid'].astype(np.float32)
         action_invalids = torch.tensor(1 - action_valids, dtype=torch.float32, device=prompt_ids.device).squeeze(0)
+        penalty_coef = _get_invalid_action_penalty_coef(
+            data_item=data_item,
+            invalid_action_penalty_coef=invalid_action_penalty_coef,
+            invalid_action_penalty_coef_by_task=invalid_action_penalty_coef_by_task,
+        )
         # invalid action penalty
         # assert reward_tensor[i, valid_response_length - 1] != 0.0, f'i={i}'
-        reward_tensor[i, valid_response_length - 1] -= invalid_action_penalty_coef * action_invalids
+        reward_tensor[i, valid_response_length - 1] -= penalty_coef * action_invalids
 
         if 'step_rewards' in data.batch.keys():
-            step_rewards[i] -= invalid_action_penalty_coef * action_invalids
+            step_rewards[i] -= penalty_coef * action_invalids
     
     valid_action_ratio = np.mean(data.non_tensor_batch['is_action_valid'].astype(np.float32)).item()
     metrics = {'episode/valid_action_ratio': valid_action_ratio}
@@ -724,6 +752,8 @@ class RayPPOTrainer:
                 non_tensor_batch_keys_to_pop.append("tools_kwargs")
             if "env_kwargs" in test_batch.non_tensor_batch:
                 non_tensor_batch_keys_to_pop.append("env_kwargs")
+            if "task_name" in test_batch.non_tensor_batch:
+                non_tensor_batch_keys_to_pop.append("task_name")
             test_gen_batch = test_batch.pop(
                 batch_keys=batch_keys_to_pop,
                 non_tensor_batch_keys=non_tensor_batch_keys_to_pop,
@@ -1061,6 +1091,8 @@ class RayPPOTrainer:
                     non_tensor_batch_keys_to_pop.append("tools_kwargs")
                 if "env_kwargs" in batch.non_tensor_batch:
                     non_tensor_batch_keys_to_pop.append("env_kwargs")
+                if "task_name" in batch.non_tensor_batch:
+                    non_tensor_batch_keys_to_pop.append("task_name")
                 gen_batch = batch.pop(
                     batch_keys=batch_keys_to_pop,
                     non_tensor_batch_keys=non_tensor_batch_keys_to_pop,
@@ -1204,6 +1236,9 @@ class RayPPOTrainer:
                         if self.config.actor_rollout_ref.actor.get('use_invalid_action_penalty', True):
                             batch, invalid_metrics = apply_invalid_action_penalty(batch,
                                                                                   invalid_action_penalty_coef=self.config.actor_rollout_ref.actor.invalid_action_penalty_coef,
+                                                                                  invalid_action_penalty_coef_by_task=self.config.actor_rollout_ref.actor.get(
+                                                                                      "invalid_action_penalty_coef_by_task", None
+                                                                                  ),
                                                                                   )
                             metrics.update(invalid_metrics)
 

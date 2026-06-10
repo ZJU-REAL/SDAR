@@ -156,9 +156,16 @@ class SDARTaskRunner:
         from verl.trainer.ppo.rlsd_utils import SkillProvider
 
         skills_dir = sdar_cfg.get("skills_dir", "skills/alfworld")
+        skills_dirs = sdar_cfg.get("skills_dirs", None)
         skill_all = sdar_cfg.get("skill_all", False)
-        skill_provider = SkillProvider(skills_dir=skills_dir, skill_all=skill_all)
-        print(f"[SDAR] Loaded skills from {skills_dir}")
+        skill_provider = SkillProvider(skills_dir=skills_dir, skill_all=skill_all, skills_dirs=skills_dirs)
+        if skills_dirs:
+            from omegaconf import OmegaConf
+
+            skills_dirs_plain = OmegaConf.to_container(skills_dirs, resolve=True) if OmegaConf.is_config(skills_dirs) else dict(skills_dirs)
+            print(f"[SDAR] Loaded multitask skills from {skills_dirs_plain}")
+        else:
+            print(f"[SDAR] Loaded skills from {skills_dir}")
         print(f"[SDAR] Available skills: {list(skill_provider.skill_contents.keys())}")
         print(f"[SDAR] Task-to-skill mapping: {skill_provider.task_to_skill}")
         print(f"[SDAR] sdar_coef: {config.actor_rollout_ref.actor.sdar_loss_coef}")

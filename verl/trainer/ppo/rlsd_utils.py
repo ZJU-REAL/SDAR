@@ -12,6 +12,7 @@ import os
 from typing import Dict, List, Optional
 
 import torch
+from omegaconf import OmegaConf
 
 
 def load_skill_mapping(skills_dir: str) -> dict:
@@ -30,6 +31,23 @@ def load_skill_content(skills_dir: str, skill_mapping: dict) -> Dict[str, str]:
     return contents
 
 
+def _normalize_task_name(task_name: Optional[str]) -> Optional[str]:
+    if task_name is None:
+        return None
+    task_name = str(task_name).lower()
+    if "alfworld" in task_name:
+        return "alfworld"
+    if "webshop" in task_name:
+        return "webshop"
+    if "search" in task_name:
+        return "search"
+    return task_name
+
+
+def _to_plain_dict(value) -> dict:
+    return OmegaConf.to_container(value, resolve=True) if OmegaConf.is_config(value) else dict(value)
+
+
 class SkillProvider:
     """Loads and caches skill files, provides privileged info per task type.
 
@@ -41,9 +59,25 @@ class SkillProvider:
         the first task type whose ALL keywords appear in the text wins.
     """
 
-    def __init__(self, skills_dir: str, skill_all: bool = False):
+    def __init__(self, skills_dir: str, skill_all: bool = False, skills_dirs: Optional[Dict[str, str]] = None):
         self.skills_dir = skills_dir
         self.skill_all = skill_all
+
+        self.task_skill_providers = {}
+        self.default_provider = None
+        if skills_dirs:
+            skills_dirs = _to_plain_dict(skills_dirs)
+            self.task_skill_providers = {
+                _normalize_task_name(task_name): SkillProvider(skills_dir=task_skills_dir, skill_all=skill_all)
+                for task_name, task_skills_dir in skills_dirs.items()
+            }
+            self.default_provider = next(iter(self.task_skill_providers.values()))
+            self.skill_mapping = self.default_provider.skill_mapping
+            self.skill_contents = self.default_provider.skill_contents
+            self.task_to_skill = self.default_provider.task_to_skill
+            self.task_keywords = self.default_provider.task_keywords
+            return
+
         self.skill_mapping = load_skill_mapping(skills_dir)
         self.skill_contents = load_skill_content(skills_dir, self.skill_mapping)
         self.task_to_skill = self.skill_mapping["task_to_skill"]
@@ -52,6 +86,12 @@ class SkillProvider:
 
         if self.skill_all:
             self._all_skills_text = self._build_all_skills_text()
+
+    def _provider_for_task(self, task_name: Optional[str]):
+        if not self.task_skill_providers:
+            return self
+        normalized = _normalize_task_name(task_name)
+        return self.task_skill_providers.get(normalized, self.default_provider)
 
     def _build_all_skills_text(self) -> str:
         """Concatenate general_skills + all task-specific skills."""
@@ -74,6 +114,8 @@ class SkillProvider:
 
     def get_privileged_info(self, gamefile: str) -> str:
         """Return skills for a gamefile path (task type appears as substring)."""
+        if self.task_skill_providers:
+            return self.default_provider.get_privileged_info(gamefile)
         if self.skill_all:
             return self._all_skills_text
         matched_task = None
@@ -90,6 +132,8 @@ class SkillProvider:
         appear in the prompt.  When multiple task types match, all of their
         skill texts are concatenated (general_skills is included only once).
         """
+        if self.task_skill_providers:
+            return self.default_provider.get_privileged_info_from_prompt(prompt_text)
         if self.skill_all:
             return self._all_skills_text
         text_lower = prompt_text.lower()
@@ -119,6 +163,8 @@ class SkillProvider:
           - data_source == 'hotpotqa' -> multi_hop_reasoning
           - otherwise -> general skills only (unknown)
         """
+        if self.task_skill_providers:
+            return self.default_provider.get_privileged_info_from_data_source(data_source, prompt_text)
         if self.skill_all:
             return self._all_skills_text
 
@@ -137,6 +183,29 @@ class SkillProvider:
                 task_type = "multi_hop_reasoning"
 
         return self._get_skill_text(task_type)
+
+    def get_privileged_info_for_sample(
+        self,
+        task_name: Optional[str] = None,
+        gamefile: Optional[str] = None,
+        data_source: Optional[str] = None,
+        prompt_text: str = "",
+    ) -> str:
+        """Return skill text, routing by task_name when multitask skills are configured."""
+        provider = self._provider_for_task(task_name)
+        if provider is not self:
+            normalized_task = _normalize_task_name(task_name)
+            if gamefile is not None:
+                return provider.get_privileged_info(str(gamefile))
+            if normalized_task == "search" and data_source is not None:
+                return provider.get_privileged_info_from_data_source(str(data_source), prompt_text)
+            return provider.get_privileged_info_from_prompt(prompt_text)
+
+        if gamefile is not None:
+            return self.get_privileged_info(str(gamefile))
+        if data_source is not None:
+            return self.get_privileged_info_from_data_source(str(data_source), prompt_text)
+        return self.get_privileged_info_from_prompt(prompt_text)
 
 
 def compute_rlsd_token_advantage(
