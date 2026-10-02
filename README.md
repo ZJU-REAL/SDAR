@@ -27,6 +27,7 @@ We introduce **SDAR**, a Self-Distilled Agentic Reinforcement learning method wi
 
 ## 🗞️ Awesome Work Powered by SDAR
 SDAR is known as the **first** open-sourced framework that unifies Agentic RL with OP(S)D, providing a codebase that has supported the following works (listed in reverse time order and most recent first):
+- **UniOPSD**: Unifying Outcome and Hindsight Feedback for Agentic Reinforcement Learning [[Paper]](https://arxiv.org/abs/2609.34810) [[Code]](https://github.com/Zenghuang-Fu/Uniopsd)
 - **RetireOPD**: Self-Retiring On-Policy Distillation for Agentic Reinforcement Learning [[Paper]](https://arxiv.org/abs/2609.20784) [[Code]](https://github.com/ZJU-REAL/SDAR)
 - **TASPO**: Reconciling Process Supervision with Outcome-Based Credit in Agentic Policy Optimization [[Paper]](https://arxiv.org/abs/2608.31077)
 - **AHEAD**: Adaptive Hindsight with Environment-Augmented Distillation for Agentic RL [[Paper]](https://arxiv.org/abs/2608.24114) [[Code]](https://jinxiaolong1129.github.io/AHEAD/)
