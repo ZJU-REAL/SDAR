@@ -287,23 +287,17 @@ If you find this project useful, welcome to cite us.
   journal={arXiv preprint arXiv:2607.26784},
   year={2026}
 }
-@misc{wang2026agentg2,
-      title={Agent-G$^2$: Gaussian Guidance for Agentic Reinforcement Learning},
-      author={Zixuan Wang and Yanrui Miao and Zhengxi Lu and Teng Pan and Yiwen Qiu and Hongxing Li and Peng Qiu and Ruiqing Zhang and Yongliang Shen},
-      year={2026},
-      eprint={2608.23318},
-      archivePrefix={arXiv},
-      primaryClass={cs.AI},
-      url={https://arxiv.org/abs/2608.23318},
+@article{wang2026agentg2,
+  title={Agent-G $\^{} 2$: Gaussian Guidance for Agentic Reinforcement Learning},
+  author={Wang, Zixuan and Miao, Yanrui and Lu, Zhengxi and Pan, Teng and Qiu, Yiwen and Li, Hongxing and Qiu, Peng and Zhang, Ruiqing and Shen, Yongliang},
+  journal={arXiv preprint arXiv:2608.23318},
+  year={2026}
 }
-@misc{yu2026retireopd,
-      title={RetireOPD: Self-Retiring On-Policy Distillation for Agentic Reinforcement Learning}, 
-      author={Yan Yu and Zhengxi Lu and Yizhou Liu and Yichen Pan and Aozhe Wang and Qipeng Chen and Hua Yang and Wenqi Zhang and Weiming Lu and Qianglong Chen and Yongliang Shen},
-      year={2026},
-      eprint={2609.20784},
-      archivePrefix={arXiv},
-      primaryClass={cs.CL},
-      url={https://arxiv.org/abs/2609.20784}, 
+@article{yu2026retireopd,
+  title={RetireOPD: Self-Retiring On-Policy Distillation for Agentic Reinforcement Learning},
+  author={Yu, Yan and Lu, Zhengxi and Liu, Yizhou and Pan, Yichen and Wang, Aozhe and Chen, Qipeng and Yang, Hua and Zhang, Wenqi and Lu, Weiming and Chen, Qianglong and others},
+  journal={arXiv preprint arXiv:2609.20784},
+  year={2026}
 }
 ```
 
