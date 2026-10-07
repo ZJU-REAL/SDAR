@@ -805,10 +805,7 @@ class RayPPOTrainer:
         data_sources = np.concatenate(data_source_lst, axis=0)
         tool_callings = np.concatenate(tool_calling_list, axis=0)
         traj_uids = np.concatenate(traj_uid_list, axis=0)
-        success_rate = {
-            k: _weighted_mean_success_rate(v, success_rate_sample_counts[k])
-            for k, v in success_rate_dict.items()
-        }
+        success_rate = {k: _weighted_mean_success_rate(v, success_rate_sample_counts[k]) for k, v in success_rate_dict.items()}
 
         # evaluate test_score based on data source
         data_source_reward = {}

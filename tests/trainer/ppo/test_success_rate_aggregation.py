@@ -21,8 +21,6 @@ reported validation metric.
 
 import unittest
 
-import numpy as np
-
 from verl.trainer.ppo.ray_trainer import _weighted_mean_success_rate
 
 
