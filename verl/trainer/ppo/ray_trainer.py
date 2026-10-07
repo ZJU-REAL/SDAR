@@ -384,6 +384,18 @@ def _timer(name: str, timing_raw: Dict[str, float]):
     timing_raw[name] += timer.last
 
 
+def _weighted_mean_success_rate(batch_rates, batch_sample_counts):
+    """Mean of per-batch success rates weighted by sample count.
+
+    Validation batches can hold different numbers of samples (e.g. a
+    trailing partial batch), so averaging batch rates directly would let
+    tiny batches dominate the reported metric. Weighting by sample count
+    keeps the metric independent of how validation data is partitioned
+    into batches.
+    """
+    return float(np.average(batch_rates, weights=batch_sample_counts))
+
+
 class RayPPOTrainer:
     """
     Note that this trainer runs on the driver process on a single CPU/GPU node.
@@ -694,6 +706,7 @@ class RayPPOTrainer:
         tool_calling_list = []
         traj_uid_list = []
         success_rate_dict = {}
+        success_rate_sample_counts = {}
 
         # Lists to collect samples for the table
         sample_inputs = []
@@ -779,7 +792,9 @@ class RayPPOTrainer:
                 if 'success_rate' in k:
                     if k not in success_rate_dict:
                         success_rate_dict[k] = []
+                        success_rate_sample_counts[k] = []
                     success_rate_dict[k].append(test_batch.non_tensor_batch[k][0])
+                    success_rate_sample_counts[k].append(len(test_batch.non_tensor_batch[k]))
                     # all success_rate should be the same
                     for i in range(1, len(test_batch.non_tensor_batch[k])):
                         assert test_batch.non_tensor_batch[k][0] == test_batch.non_tensor_batch[k][i], f'not all success_rate are the same, 0: {test_batch.non_tensor_batch[k][0]}, {i}: {test_batch.non_tensor_batch[k][i]}'
@@ -790,7 +805,7 @@ class RayPPOTrainer:
         data_sources = np.concatenate(data_source_lst, axis=0)
         tool_callings = np.concatenate(tool_calling_list, axis=0)
         traj_uids = np.concatenate(traj_uid_list, axis=0)
-        success_rate = {k: np.mean(v) for k, v in success_rate_dict.items()}
+        success_rate = {k: _weighted_mean_success_rate(v, success_rate_sample_counts[k]) for k, v in success_rate_dict.items()}
 
         # evaluate test_score based on data source
         data_source_reward = {}
