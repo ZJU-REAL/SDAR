@@ -384,6 +384,24 @@ def _timer(name: str, timing_raw: Dict[str, float]):
     timing_raw[name] += timer.last
 
 
+def _mean_reward_per_trajectory(reward_tensor, data_sources, traj_uids):
+    """Mean episode reward per data source, one entry per trajectory.
+
+    Validation batches hold one row per active (trajectory, step) pair, and
+    every step row of a trajectory carries the same broadcast episode reward
+    (see ``EpisodeRewardManager``). Averaging over all rows would weight each
+    trajectory by its episode length, so keep only the first row per
+    ``traj_uid`` — the same dedup ``_validate`` already applies to tool-call
+    counts — and average one reward per trajectory per data source.
+    """
+    rewards = np.asarray(reward_tensor, dtype=np.float64)
+    _, unique_idx = np.unique(np.asarray(traj_uids), return_index=True)
+    unique_sources = np.asarray(data_sources)[unique_idx]
+    data_source_reward = {}
+    for reward, data_source in zip(rewards[unique_idx], unique_sources):
+        data_source_reward.setdefault(str(data_source), []).append(float(reward))
+    return {k: float(np.mean(v)) for k, v in data_source_reward.items()}
+
 class RayPPOTrainer:
     """
     Note that this trainer runs on the driver process on a single CPU/GPU node.
@@ -793,12 +811,10 @@ class RayPPOTrainer:
         success_rate = {k: np.mean(v) for k, v in success_rate_dict.items()}
 
         # evaluate test_score based on data source
-        data_source_reward = {}
-        for i in range(reward_tensor.shape[0]):
-            data_source = data_sources[i]
-            if data_source not in data_source_reward:
-                data_source_reward[data_source] = []
-            data_source_reward[data_source].append(reward_tensor[i].item())
+        # One reward per trajectory (see _mean_reward_per_trajectory): every
+        # step row of a trajectory carries the same broadcast episode reward,
+        # so averaging over all rows would weight trajectories by episode length.
+        data_source_reward = _mean_reward_per_trajectory(reward_tensor, data_sources, traj_uids)
 
         # evaluate tool call based on data source
         # the values in tool_callings represent the tool call count for each trajectory; however, since the batch is expanded by step, we only need to take one value for each unique trajectories.
@@ -814,8 +830,8 @@ class RayPPOTrainer:
             data_source_tool_calling[data_source].append(unique_tool_callings[i].item())
 
         metric_dict = {}
-        for data_source, rewards in data_source_reward.items():
-            metric_dict[f'val/{data_source}/test_score'] = np.mean(rewards)
+        for data_source, mean_reward in data_source_reward.items():
+            metric_dict[f'val/{data_source}/test_score'] = mean_reward
 
         for data_source, tool_calls in data_source_tool_calling.items():
             metric_dict[f'val/{data_source}/tool_call_count/mean'] = np.mean(tool_calls)
